@@ -10,7 +10,7 @@ cmake_minimum_required(VERSION 3.4.1)
 # You can define multiple libraries, and CMake builds them for you.
 # Gradle automatically packages shared libraries with your APK.
 
-set(SRC_DIR ${CMAKE_SOURCE_DIR}/src/main/cpp)
+set(SRC_DIR ${CMAKE_SOURCE_DIR})
 
 add_library( # Sets the name of the library.
              native-lib
@@ -19,8 +19,8 @@ add_library( # Sets the name of the library.
              SHARED
 
              # Provides a relative path to your source file(s).
-             src/main/cpp/native-lib.cpp
-             src/main/cpp/MppDecoder.cpp )
+        native-lib.cpp
+        MppDecoder.cpp)
 
 add_library(mpp SHARED IMPORTED)
 set_target_properties(mpp PROPERTIES IMPORTED_LOCATION ${SRC_DIR}/libmpp.so)

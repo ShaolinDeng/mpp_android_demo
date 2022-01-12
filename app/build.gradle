@@ -1,43 +1,89 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 26
-    buildToolsVersion "26.0.0"
+    compileSdk 31
+
     defaultConfig {
         applicationId "com.example.root.mpp_android_demo"
-        minSdkVersion 19
-        targetSdkVersion 26
+        minSdkVersion 21
+        targetSdkVersion 31
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        ndkVersion "23.0.7599858"
+
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++11"
             }
         }
-        ndk {
-            abiFilters 'armeabi'
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("../rk3568.platform.keystore")
+            storePassword 'android'
+            keyAlias 'alias_platform_rk3568'
+            keyPassword 'android'
+        }
+        staging {
+            storeFile file("../rk3568.platform.keystore")
+            storePassword 'android'
+            keyAlias 'alias_platform_rk3568'
+            keyPassword 'android'
+        }
+        debug {
+            storeFile file("../rk3568.platform.keystore")
+            storePassword 'android'
+            keyAlias 'alias_platform_rk3568'
+            keyPassword 'android'
         }
     }
+
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            ndk {
+                abiFilters  "armeabi-v7a"// 保留这架构的CPU "arm64-v8a",
+            }
         }
+        staging {
+            signingConfig signingConfigs.staging
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            ndk {
+                abiFilters  "armeabi-v7a"// 保留这架构的CPU "arm64-v8a",
+            }
+        }
+        debug {
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            ndk {
+                abiFilters  "armeabi-v7a"// 保留这架构的CPU "arm64-v8a",
+            }
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
     externalNativeBuild {
         cmake {
-            path "CMakeLists.txt"
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.10.2"
         }
     }
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
-        exclude group: 'com.android.support', module: 'support-annotations'
-    })
-    compile 'com.android.support:appcompat-v7:26.+'
-    compile 'com.android.support.constraint:constraint-layout:1.0.2'
-    testCompile 'junit:junit:4.12'
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+//    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+//        exclude group: 'com.android.support', module: 'support-annotations'
+//    })
+    implementation 'androidx.appcompat:appcompat:1.0.0'
+    implementation 'com.android.support.constraint:constraint-layout:1.0.2'
+    testImplementation 'junit:junit:4.12'
 }
