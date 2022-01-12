@@ -21,30 +21,6 @@
 #include "mpp_err.h"
 
 /*
- * because buffer usage maybe unknown when decoder is not started
- * buffer group may need to set a default group size limit
- */
-#define SZ_1K           (1024)
-#define SZ_2K           (SZ_1K*2)
-#define SZ_4K           (SZ_1K*4)
-#define SZ_8K           (SZ_1K*8)
-#define SZ_16K          (SZ_1K*16)
-#define SZ_32K          (SZ_1K*32)
-#define SZ_64K          (SZ_1K*64)
-#define SZ_128K         (SZ_1K*128)
-#define SZ_256K         (SZ_1K*256)
-#define SZ_512K         (SZ_1K*512)
-#define SZ_1M           (SZ_1K*SZ_1K)
-#define SZ_2M           (SZ_1M*2)
-#define SZ_4M           (SZ_1M*4)
-#define SZ_8M           (SZ_1M*8)
-#define SZ_16M          (SZ_1M*16)
-#define SZ_32M          (SZ_1M*32)
-#define SZ_64M          (SZ_1M*64)
-#define SZ_80M          (SZ_1M*80)
-#define SZ_128M         (SZ_1M*128)
-
-/*
  * MppBuffer module has several functions:
  *
  * 1. buffer get / put / reference management / external commit / get info.
@@ -76,8 +52,6 @@
  *    user can only use MppBufferType to choose.
  *
  */
-typedef void* MppBuffer;
-typedef void* MppBufferGroup;
 
 /*
  * mpp buffer group support two work flow mode:
@@ -140,26 +114,54 @@ typedef enum {
 } MppBufferMode;
 
 /*
- * mpp buffer has two types:
+ * the mpp buffer has serval types:
  *
  * normal   : normal malloc buffer for unit test or hardware simulation
  * ion      : use ion device under Android/Linux, MppBuffer will encapsulte ion file handle
+ * ext_dma  : the DMABUF(DMA buffers) come from the application
+ * drm      : use the drm device interface for memory management
  */
 typedef enum {
     MPP_BUFFER_TYPE_NORMAL,
     MPP_BUFFER_TYPE_ION,
-    MPP_BUFFER_TYPE_V4L2,
+    MPP_BUFFER_TYPE_EXT_DMA,
     MPP_BUFFER_TYPE_DRM,
     MPP_BUFFER_TYPE_BUTT,
 } MppBufferType;
 
+#define MPP_BUFFER_TYPE_MASK            0x0000FFFF
+
+/*
+ * MPP_BUFFER_FLAGS cooperate with MppBufferType
+ * 16 high bits of MppBufferType are used in flags
+ *
+ * eg:
+ * DRM CMA buffer : MPP_BUFFER_TYPE_DRM | MPP_BUFFER_FLAGS_CONTIG
+ *                  = 0x00010003
+ * DRM SECURE buffer: MPP_BUFFER_TYPE_DRM | MPP_BUFFER_FLAGS_SECURE
+ *                  = 0x00080003
+ *
+ * flags originate from drm_rockchip_gem_mem_type
+ */
+
+#define MPP_BUFFER_FLAGS_MASK           0x000f0000      //ROCKCHIP_BO_MASK << 16
+#define MPP_BUFFER_FLAGS_CONTIG         0x00010000      //ROCKCHIP_BO_CONTIG << 16
+#define MPP_BUFFER_FLAGS_CACHABLE       0x00020000      //ROCKCHIP_BO_CACHABLE << 16
+#define MPP_BUFFER_FLAGS_WC             0x00040000      //ROCKCHIP_BO_WC << 16
+#define MPP_BUFFER_FLAGS_SECURE         0x00080000      //ROCKCHIP_BO_SECURE << 16
+
 /*
  * MppBufferInfo variable's meaning is different in different MppBufferType
+ *
+ * Common
+ * index - the buffer index used to track buffer in buffer pool
+ * size  - the buffer size
  *
  * MPP_BUFFER_TYPE_NORMAL
  *
  * ptr  - virtual address of normal malloced buffer
- * fd   - unused and set to -1
+ * fd   - unused and set to -1, the allocator would return its
+ *         internal buffer counter number
  *
  * MPP_BUFFER_TYPE_ION
  *
@@ -167,9 +169,6 @@ typedef enum {
  * hnd  - ion handle in user space
  * fd   - ion buffer file handle for map / unmap
  *
- * MPP_BUFFER_TYPE_V4L2
- *
- * TODO: to be implemented.
  */
 typedef struct MppBufferInfo_t {
     MppBufferType   type;
@@ -252,6 +251,12 @@ typedef struct MppBufferInfo_t {
 #define mpp_buffer_set_index(buffer, index) \
         mpp_buffer_set_index_with_caller(buffer, index, __FUNCTION__)
 
+#define mpp_buffer_get_offset(buffer) \
+        mpp_buffer_get_offset_with_caller(buffer, __FUNCTION__)
+
+#define mpp_buffer_set_offset(buffer, offset) \
+        mpp_buffer_set_offset_with_caller(buffer, offset, __FUNCTION__)
+
 #define mpp_buffer_group_get_internal(group, type, ...) \
         mpp_buffer_group_get(group, type, MPP_BUFFER_INTERNAL, MODULE_TAG, __FUNCTION__)
 
@@ -286,12 +291,15 @@ int     mpp_buffer_get_fd_with_caller(MppBuffer buffer, const char *caller);
 size_t  mpp_buffer_get_size_with_caller(MppBuffer buffer, const char *caller);
 int     mpp_buffer_get_index_with_caller(MppBuffer buffer, const char *caller);
 MPP_RET mpp_buffer_set_index_with_caller(MppBuffer buffer, int index, const char *caller);
+size_t  mpp_buffer_get_offset_with_caller(MppBuffer buffer, const char *caller);
+MPP_RET mpp_buffer_set_offset_with_caller(MppBuffer buffer, size_t offset, const char *caller);
 
 MPP_RET mpp_buffer_group_get(MppBufferGroup *group, MppBufferType type, MppBufferMode mode,
                              const char *tag, const char *caller);
 MPP_RET mpp_buffer_group_put(MppBufferGroup group);
 MPP_RET mpp_buffer_group_clear(MppBufferGroup group);
 RK_S32  mpp_buffer_group_unused(MppBufferGroup group);
+size_t  mpp_buffer_group_usage(MppBufferGroup group);
 MppBufferMode mpp_buffer_group_mode(MppBufferGroup group);
 MppBufferType mpp_buffer_group_type(MppBufferGroup group);
 
@@ -300,6 +308,9 @@ MppBufferType mpp_buffer_group_type(MppBufferGroup group);
  * count : 0 - no limit, other - max buffer count
  */
 MPP_RET mpp_buffer_group_limit_config(MppBufferGroup group, size_t size, RK_S32 count);
+
+RK_U32 mpp_buffer_total_now();
+RK_U32 mpp_buffer_total_max();
 
 #ifdef __cplusplus
 }

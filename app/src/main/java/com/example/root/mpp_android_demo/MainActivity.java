@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
             @Override
             public void run() {
                 int ret = MppDecoder.MppDecoderRegister(surfaceholder.getSurface());
-                Log.d("sliver", "ret val:"+ret);
+                Log.d("MLMPP", "ret val:"+ret);
             }
         }).start();
     }

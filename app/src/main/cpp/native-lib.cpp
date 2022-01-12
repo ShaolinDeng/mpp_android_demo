@@ -24,7 +24,7 @@ JNIEXPORT int JNICALL
     MppDecoder *mpp_dec = new MppDecoder();
     char *read_buf = new char[0xfff];
 
-    LOGE("start to exec mpp decode program.\n");
+    LOGI("start to exec mpp decode program.===>\n");
     std::ifstream fin(file_name, std::ios::binary);
     if (!fin) {
         LOGE("failed to open input file %s.\n", file_name.c_str());
@@ -35,15 +35,17 @@ JNIEXPORT int JNICALL
      * set decode width & height
      * set display width & height
      */
-    ret = mpp_dec->init(MPP_CTX_DEC, MPP_VIDEO_CodingAVC, 1920, 1080, 2560, 1440);
+    ret = mpp_dec->init(MPP_CTX_DEC, MPP_VIDEO_CodingAVC, 1920, 1080, 1920, 1080);
     if (ret) {
         goto RET;
+    }else{
+        LOGI(" mpp===> dec init OK :%d",ret);
     }
 
     while (!fin.eof()) {
         fin.read(read_buf, 0xfff);
         len = fin.gcount();
-        LOGE("read file length %d.\n", len);
+        //LOGI("read file length %d.\n", len);
 
         if (len == 0xfff) {
             ret = mpp_dec->decode(read_buf, 0xfff, 0);

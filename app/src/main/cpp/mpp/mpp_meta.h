@@ -20,9 +20,6 @@
 #include <stdint.h>
 #include "rk_type.h"
 
-#include "mpp_frame.h"
-#include "mpp_packet.h"
-
 #define FOURCC_META(a, b, c, d) ((RK_U32)(a) << 24  | \
                                 ((RK_U32)(b) << 16) | \
                                 ((RK_U32)(c) << 8)  | \
@@ -66,7 +63,9 @@ typedef enum MppMetaKey_e {
     KEY_INPUT_PACKET            = FOURCC_META('i', 'p', 'k', 't'),
     KEY_OUTPUT_FRAME            = FOURCC_META('o', 'f', 'r', 'm'),
     KEY_OUTPUT_PACKET           = FOURCC_META('o', 'p', 'k', 't'),
-    KEY_MOTION_INFO             = FOURCC_META('m', 'v', 'i', 'f'),   /* output motion information for motion detection */
+    /* output motion information for motion detection */
+    KEY_MOTION_INFO             = FOURCC_META('m', 'v', 'i', 'f'),
+    KEY_HDR_INFO                = FOURCC_META('h', 'd', 'r', ' '),
 
     /* flow control key */
     KEY_INPUT_BLOCK             = FOURCC_META('i', 'b', 'l', 'k'),
@@ -74,25 +73,68 @@ typedef enum MppMetaKey_e {
     KEY_INPUT_IDR_REQ           = FOURCC_META('i', 'i', 'd', 'r'),   /* input idr frame request flag */
     KEY_OUTPUT_INTRA            = FOURCC_META('o', 'i', 'd', 'r'),   /* output intra frame indicator */
 
-    /* flow control key */
-    KEY_WIDTH                   = FOURCC_META('w', 'd', 't', 'h'),
-    KEY_HEIGHT                  = FOURCC_META('h', 'g', 'h', 't'),
-    KEY_BITRATE                 = FOURCC_META('b', 'p', 's', ' '),
-    KEY_BITRATE_UP              = FOURCC_META('b', 'p', 's', 'u'),
-    KEY_BITRATE_LOW             = FOURCC_META('b', 'p', 's', 'l'),
-    KEY_INPUT_FPS               = FOURCC_META('i', 'f', 'p', 's'),
-    KEY_OUTPUT_FPS              = FOURCC_META('o', 'f', 'p', 's'),
-    KEY_GOP                     = FOURCC_META('g', 'o', 'p', ' '),
-    KEY_QP                      = FOURCC_META('q', 'p', ' ', ' '),
-    KEY_QP_MIN                  = FOURCC_META('q', 'm', 'i', 'n'),
-    KEY_QP_MAX                  = FOURCC_META('q', 'm', 'a', 'x'),
-    KEY_QP_DIFF_RANGE           = FOURCC_META('q', 'd', 'i', 'f'),
-    KEY_RC_MODE                 = FOURCC_META('r', 'c', 'm', 'o'),
+    /* mpp_frame / mpp_packet meta data info key */
+    KEY_TEMPORAL_ID             = FOURCC_META('t', 'l', 'i', 'd'),
+    KEY_LONG_REF_IDX            = FOURCC_META('l', 't', 'i', 'd'),
+    KEY_ENC_AVERAGE_QP          = FOURCC_META('a', 'v', 'g', 'q'),
+    KEY_ROI_DATA                = FOURCC_META('r', 'o', 'i', ' '),
+    KEY_OSD_DATA                = FOURCC_META('o', 's', 'd', ' '),
+    KEY_OSD_DATA2               = FOURCC_META('o', 's', 'd', '2'),
+    KEY_USER_DATA               = FOURCC_META('u', 's', 'r', 'd'),
+    KEY_USER_DATAS              = FOURCC_META('u', 'r', 'd', 's'),
+
+    /*
+     * For vepu580 roi buffer config mode
+     * The encoder roi structure is so complex that we should provide a buffer
+     * tunnel for externl user to config encoder hardware by direct sending
+     * roi data buffer.
+     * This way can reduce the config parsing and roi buffer data generating
+     * overhead in mpp.
+     */
+    KEY_ROI_DATA2               = FOURCC_META('r', 'o', 'i', '2'),
+
+    /*
+     * qpmap for rv1109/1126 encoder qpmap config
+     * Input data is a MppBuffer which contains an array of 16bit Vepu541RoiCfg.
+     * And each 16bit represents a 16x16 block qp info.
+     *
+     * H.264 - 16x16 block qp is arranged in raster order:
+     * each value is a 16bit data
+     * 00 01 02 03 04 05 06 07 -> 00 01 02 03 04 05 06 07
+     * 10 11 12 13 14 15 16 17    10 11 12 13 14 15 16 17
+     * 20 21 22 23 24 25 26 27    20 21 22 23 24 25 26 27
+     * 30 31 32 33 34 35 36 37    30 31 32 33 34 35 36 37
+     *
+     * H.265 - 16x16 block qp is reorder to 64x64/32x32 ctu order then 64x64 / 32x32 ctu raster order
+     * 64x64 ctu
+     * 00 01 02 03 04 05 06 07 -> 00 01 02 03 10 11 12 13 20 21 22 23 30 31 32 33 04 05 06 07 14 15 16 17 24 25 26 27 34 35 36 37
+     * 10 11 12 13 14 15 16 17
+     * 20 21 22 23 24 25 26 27
+     * 30 31 32 33 34 35 36 37
+     * 32x32 ctu
+     * 00 01 02 03 04 05 06 07 -> 00 01 10 11 02 03 12 13 04 05 14 15 06 07 16 17
+     * 10 11 12 13 14 15 16 17    20 21 30 31 22 23 32 33 24 25 34 35 26 27 36 37
+     * 20 21 22 23 24 25 26 27
+     * 30 31 32 33 34 35 36 37
+     */
+    KEY_QPMAP0                  = FOURCC_META('e', 'q', 'm', '0'),
+
+    /* input motion list for smart p rate control */
+    KEY_MV_LIST                 = FOURCC_META('m', 'v', 'l', 't'),
+
+    /* frame long-term reference frame operation */
+    KEY_ENC_MARK_LTR            = FOURCC_META('m', 'l', 't', 'r'),
+    KEY_ENC_USE_LTR             = FOURCC_META('u', 'l', 't', 'r'),
+
+    /* MLVEC specified encoder feature  */
+    KEY_ENC_FRAME_QP            = FOURCC_META('f', 'r', 'm', 'q'),
+    KEY_ENC_BASE_LAYER_PID      = FOURCC_META('b', 'p', 'i', 'd'),
 } MppMetaKey;
 
-typedef void* MppMeta;
-
 #define mpp_meta_get(meta) mpp_meta_get_with_tag(meta, MODULE_TAG, __FUNCTION__)
+
+#include "mpp_frame.h"
+#include "mpp_packet.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -100,6 +142,7 @@ extern "C" {
 
 MPP_RET mpp_meta_get_with_tag(MppMeta *meta, const char *tag, const char *caller);
 MPP_RET mpp_meta_put(MppMeta meta);
+RK_S32  mpp_meta_size(MppMeta meta);
 
 MPP_RET mpp_meta_set_s32(MppMeta meta, MppMetaKey key, RK_S32 val);
 MPP_RET mpp_meta_set_s64(MppMeta meta, MppMetaKey key, RK_S64 val);

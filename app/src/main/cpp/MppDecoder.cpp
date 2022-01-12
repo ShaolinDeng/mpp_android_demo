@@ -5,7 +5,7 @@
 #include "MppDecoder.h"
 
 #define DEFAULT_PKT_SIZE    (0xfff)
-//#define DEBUG_WRITE_RAW     1
+#define DEBUG_WRITE_RAW     1
 
 MppDecoder::MppDecoder() : pkt_buf_(NULL),
                            eos_(0),
@@ -173,14 +173,18 @@ MPP_RET MppDecoder::decode(char *pkt_buf, int pkt_size, RK_U32 eos) {
     char *out_buf = NULL;
 
     memcpy(pkt_buf_, pkt_buf, pkt_size);
+    LOGI(" mpp===> dec bufsize:%d ",pkt_size);
 
     mpp_packet_write(packet_, 0, pkt_buf_, pkt_size);
     mpp_packet_set_pos(packet_, pkt_buf_);
     mpp_packet_set_length(packet_, pkt_size);
 
     if (eos) {
+        LOGI(" mpp===> EOS 结束符 ");
         eos_ = eos;
         mpp_packet_set_eos(packet_);
+    }else{
+        //LOGI(" mpp===> 帧序：%d ",frm_cnt_);
     }
 
     do {
@@ -188,8 +192,13 @@ MPP_RET MppDecoder::decode(char *pkt_buf, int pkt_size, RK_U32 eos) {
 
         if (!pkt_done) {
             ret = mpi_->decode_put_packet(ctx_, packet_);
-            if (ret == MPP_OK)
+            if (ret == MPP_OK){
                 pkt_done = 1;
+                //LOGI(" mpp===> 成功输入 %d",frm_cnt_);
+            }else{
+                //LOGI(" mpp===> 输入失败 %d",frm_cnt_);
+            }
+
         }
 
         do {
@@ -204,6 +213,8 @@ MPP_RET MppDecoder::decode(char *pkt_buf, int pkt_size, RK_U32 eos) {
                     goto try_again;
                 }
                 LOGE("decode_get_frame failed too much time\n");
+            }else{
+                //LOGI(" mpp===> 解码成功 ，获取Frame  %d  ret:%d",frm_cnt_,ret);
             }
 
             if (ret != MPP_OK) {
@@ -212,14 +223,16 @@ MPP_RET MppDecoder::decode(char *pkt_buf, int pkt_size, RK_U32 eos) {
             }
 
             if (frame_) {
+                LOGI(" mpp===> 解码成功  准备显示 %d",frm_cnt_);
+
                 if (mpp_frame_get_info_change(frame_)) {
                     RK_U32 width  = mpp_frame_get_width(frame_);
                     RK_U32 height = mpp_frame_get_height(frame_);
                     RK_U32 hor_stride = mpp_frame_get_hor_stride(frame_);
                     RK_U32 ver_stride = mpp_frame_get_ver_stride(frame_);
 
-                    LOGE("decode_get_frame get info changed found\n");
-                    LOGE("deocder require buffer w:h [%d %d] stride [%d:%d]",
+                    LOGI("decode_get_frame get info changed found\n");
+                    LOGI("deocder require buffer w:h [%d %d] stride [%d:%d]",
                          width, height, hor_stride, ver_stride);
 
                     ret = mpp_buffer_group_get_internal(&frm_grp_, MPP_BUFFER_TYPE_ION);
@@ -231,16 +244,20 @@ MPP_RET MppDecoder::decode(char *pkt_buf, int pkt_size, RK_U32 eos) {
                     mpi_->control(ctx_, MPP_DEC_SET_EXT_BUF_GROUP, frm_grp_);
                     mpi_->control(ctx_, MPP_DEC_SET_INFO_CHANGE_READY, NULL);
                 } else {
-#ifdef DEBUG_WRITE_RAW
+//#ifdef DEBUG_WRITE_RAW
                     internal_write_frame(frame_);
-#endif
-                    LOGE("ecode_get_frame get frame %d\n", frm_cnt_++);
+//#endif
+                    LOGI("ecode_get_frame get frame %d\n", frm_cnt_++);
+                    LOGI("deocder require buffer w:h [%d %d] ",
+                         mpp_frame_get_width(frame_), mpp_frame_get_height(frame_));
                 }
 
                 frm_eos = mpp_frame_get_eos(frame_);
                 mpp_frame_deinit(&frame_);
                 frame_ = NULL;
                 get_frm = 1;
+            }else{
+                //LOGE("get_frame get frame  is NULL\n");
             }
 
             if (eos_ && pkt_done && !frm_eos) {
@@ -249,8 +266,8 @@ MPP_RET MppDecoder::decode(char *pkt_buf, int pkt_size, RK_U32 eos) {
             }
 
             if (frm_eos) {
-                LOGE("found last frame %d\n", pkt_done);
-                break;
+                LOGI("found last frame %d\n", pkt_done);
+                //break;
             }
 
             if (get_frm)
@@ -285,6 +302,9 @@ void MppDecoder::internal_write_frame(MppFrame frame) {
     v_stride = mpp_frame_get_ver_stride(frame);
     fmt      = mpp_frame_get_fmt(frame);
     buffer   = mpp_frame_get_buffer(frame);
+
+    LOGI("internal_write_frame buffer w:h [%d %d] stride [%d:%d]  Forat:%d ",
+         width, height, h_stride, v_stride,fmt);
 
     if (NULL == buffer)
         return ;

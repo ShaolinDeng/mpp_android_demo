@@ -23,9 +23,9 @@ add_library( # Sets the name of the library.
         MppDecoder.cpp)
 
 add_library(mpp SHARED IMPORTED)
-set_target_properties(mpp PROPERTIES IMPORTED_LOCATION ${SRC_DIR}/libmpp.so)
+set_target_properties(mpp PROPERTIES IMPORTED_LOCATION ${SRC_DIR}/libs/${ANDROID_ABI}/libmpp.so)
 add_library(vpu SHARED IMPORTED)
-set_target_properties(vpu PROPERTIES IMPORTED_LOCATION ${SRC_DIR}/libvpu.so)
+set_target_properties(vpu PROPERTIES IMPORTED_LOCATION ${SRC_DIR}/libs/${ANDROID_ABI}/libvpu.so)
 
 target_include_directories(native-lib PRIVATE ${SRC_DIR}/mpp)
 # Searches for a specified prebuilt library and stores the path as a
