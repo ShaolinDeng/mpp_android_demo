@@ -244,9 +244,9 @@ MPP_RET MppDecoder::decode(char *pkt_buf, int pkt_size, RK_U32 eos) {
                     mpi_->control(ctx_, MPP_DEC_SET_EXT_BUF_GROUP, frm_grp_);
                     mpi_->control(ctx_, MPP_DEC_SET_INFO_CHANGE_READY, NULL);
                 } else {
-//#ifdef DEBUG_WRITE_RAW
+#ifdef DEBUG_WRITE_RAW
                     internal_write_frame(frame_);
-//#endif
+#endif
                     LOGI("ecode_get_frame get frame %d\n", frm_cnt_++);
                     LOGI("deocder require buffer w:h [%d %d] ",
                          mpp_frame_get_width(frame_), mpp_frame_get_height(frame_));
